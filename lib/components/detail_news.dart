@@ -47,7 +47,7 @@ class DetailNewsScreen extends StatelessWidget {
   }
 
   Widget _buildAppBar(BuildContext context) {
-    final imageUrl = "http://silahar3272.ftp.sh:3000${news["image_url"]}";
+    final imageUrl = "https://silahar3272.ftp.sh${news["image_url"]}";
     
     return SliverAppBar(
       expandedHeight: 300.0,

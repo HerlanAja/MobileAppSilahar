@@ -71,79 +71,87 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   }
 
   Future<void> handleLogin() async {
-  final username = _usernameController.text.trim();
-  final password = _passwordController.text.trim();
+    final username = _usernameController.text.trim();
+    final password = _passwordController.text.trim();
 
-  if (username.isEmpty || password.isEmpty) {
-    _showSnackbar('Username dan password wajib diisi.', isError: true);
-    return;
-  }
-
-  setState(() => _isLoading = true);
-
-  try {
-    final response = await http.post(
-      Uri.parse('http://silahar3272.ftp.sh:3000/api/pengguna/login'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'username': username, 'password': password}),
-    );
-
-    final data = jsonDecode(response.body);
-
-    if (response.statusCode == 200) {
-      final user = data['user'];
-      final role = user?['role'];
-
-      if (role == 'pengguna') {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('username', username);
-
-        // Simpan token
-        final token = data['token'];
-        if (token != null) {
-          await prefs.setString('token', token);
-          print('Token saved to local storage');
-        }
-
-        // Simpan user ID
-        final userId = user['id'];
-        if (userId != null) {
-          await prefs.setInt('user_id', userId);
-          print('User ID saved to local storage');
-        }
-
-        // Simpan Nama Lengkap
-        final namaLengkap = user['nama_lengkap'];
-        if (namaLengkap != null) {
-          await prefs.setString('nama_lengkap', namaLengkap);
-          print('Nama Lengkap saved to local storage');
-        }
-
-        _showSnackbar('Login berhasil!', isError: false);
-
-        Future.delayed(const Duration(milliseconds: 500), () {
-          Navigator.pushReplacementNamed(context, '/home');
-        });
-      } else {
-        _showAlertDialog('Akses Ditolak', 'Anda tidak memiliki akses sebagai pengguna. Hubungi admin BPS Kota Sukabumi.');
-      }
-    } else {
-      final message = data['message']?.toString().toLowerCase() ?? '';
-
-      if (message.contains('username')) {
-        _showAlertDialog('Username Tidak Ditemukan', 'Username yang Anda masukkan tidak terdaftar. Silakan coba lagi.');
-      } else if (message.contains('password')) {
-        _showAlertDialog('Password Salah', 'Password yang Anda masukkan tidak sesuai. Silakan coba lagi.');
-      } else {
-        _showAlertDialog('Login Gagal', data['message'] ?? 'Terjadi kesalahan saat login.');
-      }
+    if (username.isEmpty || password.isEmpty) {
+      _showSnackbar('Username dan password wajib diisi.', isError: true);
+      return;
     }
-  } catch (e) {
-    _showAlertDialog('Kesalahan Sistem', 'Terjadi kesalahan: $e');
-  } finally {
-    setState(() => _isLoading = false);
+
+    setState(() => _isLoading = true);
+
+    try {
+      final response = await http.post(
+        Uri.parse('https://silahar3272.ftp.sh/api/pengguna/login'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'username': username, 'password': password}),
+      );
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        final user = data['user'];
+        final role = user?['role'];
+
+        if (role == 'pengguna') {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('username', username);
+
+          // Simpan token
+          final token = data['token'];
+          if (token != null) {
+            await prefs.setString('token', token);
+            print('Token saved to local storage');
+          }
+
+          // Simpan user ID
+          final userId = user['id'];
+          if (userId != null) {
+            await prefs.setInt('user_id', userId);
+            print('User ID saved to local storage');
+          }
+
+          // Simpan Nama Lengkap
+          final namaLengkap = user['nama_lengkap'];
+          if (namaLengkap != null) {
+            await prefs.setString('nama_lengkap', namaLengkap);
+            print('Nama Lengkap saved to local storage');
+          }
+
+          // --- AWAL TAMBAHAN UNTUK MENYIMPAN NIP ---
+          final nip = user['nip']; // Mengambil NIP dari objek 'user'
+          if (nip != null) {
+            await prefs.setString('nip', nip.toString()); // Simpan sebagai String
+            print('NIP saved to local storage: $nip');
+          }
+          // --- AKHIR TAMBAHAN ---
+
+          _showSnackbar('Login berhasil!', isError: false);
+
+          Future.delayed(const Duration(milliseconds: 500), () {
+            Navigator.pushReplacementNamed(context, '/home');
+          });
+        } else {
+          _showAlertDialog('Akses Ditolak', 'Anda tidak memiliki akses sebagai pengguna. Hubungi admin BPS Kota Sukabumi.');
+        }
+      } else {
+        final message = data['message']?.toString().toLowerCase() ?? '';
+
+        if (message.contains('username')) {
+          _showAlertDialog('Username Tidak Ditemukan', 'Username yang Anda masukkan tidak terdaftar. Silakan coba lagi.');
+        } else if (message.contains('password')) {
+          _showAlertDialog('Password Salah', 'Password yang Anda masukkan tidak sesuai. Silakan coba lagi.');
+        } else {
+          _showAlertDialog('Login Gagal', data['message'] ?? 'Terjadi kesalahan saat login.');
+        }
+      }
+    } catch (e) {
+      _showAlertDialog('Kesalahan Sistem', 'Terjadi kesalahan: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
-}
 
 
   // Function to logout - can be used in other screens
@@ -649,4 +657,3 @@ class BackgroundPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
-

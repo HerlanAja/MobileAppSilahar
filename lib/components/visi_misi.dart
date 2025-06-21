@@ -20,7 +20,7 @@ class _VisiMisiState extends State<VisiMisi> with SingleTickerProviderStateMixin
   final double _scale = 1.0;
   
   // Base URL for the API
-  final String _baseUrl = 'http://silahar3272.ftp.sh:3000';
+  final String _baseUrl = 'https://silahar3272.ftp.sh';
 
   @override
   void initState() {

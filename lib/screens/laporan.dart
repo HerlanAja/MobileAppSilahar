@@ -6,6 +6,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:path_provider/path_provider.dart';
 
 class AddLaporanScreen extends StatefulWidget {
   const AddLaporanScreen({Key? key}) : super(key: key);
@@ -34,6 +36,14 @@ class _AddLaporanScreenState extends State<AddLaporanScreen> {
     }
   }
 
+  /// Membersihkan token dari SharedPreferences dan mengarahkan pengguna ke halaman login.
+  Future<void> _clearTokenAndRedirectToLogin() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('token'); // Hapus token dari SharedPreferences
+    // Pastikan '/login' adalah route yang benar untuk halaman login Anda di main.dart
+    Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+  }
+
   Future<void> _selectTime(TextEditingController controller) async {
     final TimeOfDay? picked = await showTimePicker(
       context: context,
@@ -53,7 +63,9 @@ class _AddLaporanScreenState extends State<AddLaporanScreen> {
     );
     if (picked != null) {
       setState(() {
-        controller.text = picked.format(context);
+        final String formattedHour = picked.hour.toString().padLeft(2, '0');
+        final String formattedMinute = picked.minute.toString().padLeft(2, '0');
+        controller.text = '$formattedHour:$formattedMinute';
       });
     }
   }
@@ -61,9 +73,31 @@ class _AddLaporanScreenState extends State<AddLaporanScreen> {
   Future<void> _pickImage() async {
     final pickedFile = await ImagePicker().pickImage(source: ImageSource.camera);
     if (pickedFile != null) {
-      setState(() {
-        _selectedImage = File(pickedFile.path);
-      });
+      final File imageFile = File(pickedFile.path);
+
+      final Directory tempDir = await getTemporaryDirectory();
+      final String tempPath = tempDir.path;
+      final String targetPath = '$tempPath/${DateTime.now().millisecondsSinceEpoch}.jpeg';
+
+      try {
+        final XFile? compressedImage = await FlutterImageCompress.compressAndGetFile(
+          imageFile.path,
+          targetPath,
+          quality: 70, // Sesuaikan kualitas (0-100). 70 adalah nilai yang baik.
+          format: CompressFormat.jpeg,
+        );
+
+        if (compressedImage != null) {
+          setState(() {
+            _selectedImage = File(compressedImage.path);
+          });
+        } else {
+          await _showErrorSnackBar("Gagal mengompres gambar: File kosong atau tidak valid.");
+        }
+      } catch (e) {
+        await _showErrorSnackBar("Terjadi kesalahan saat mengompres gambar: ${e.toString()}");
+        print("Error during image compression: $e");
+      }
     }
   }
 
@@ -72,14 +106,15 @@ class _AddLaporanScreenState extends State<AddLaporanScreen> {
         _jamSelesaiController.text.isEmpty ||
         _deskripsiController.text.isEmpty ||
         _selectedImage == null) {
-      _showErrorSnackBar("Harap isi semua bidang dan pilih foto!");
+      await _showErrorSnackBar("Harap isi semua bidang dan pilih foto!");
       return;
     }
 
     final token = await _getToken();
     if (token == null) {
-      _showErrorSnackBar("Sesi telah habis, silakan login kembali");
-      Navigator.pushReplacementNamed(context, '/login');
+      // Jika token tidak ada sama sekali saat mencoba submit
+      await _showErrorSnackBar("Sesi telah habis, silakan login kembali");
+      await _clearTokenAndRedirectToLogin(); // Panggil fungsi untuk membersihkan token dan redirect
       return;
     }
 
@@ -88,7 +123,7 @@ class _AddLaporanScreenState extends State<AddLaporanScreen> {
     });
 
     try {
-      final uri = Uri.parse('http://silahar3272.ftp.sh:3000/api/laporan/tambah');
+      final uri = Uri.parse('https://silahar3272.ftp.sh/api/laporan/tambah');
       var request = http.MultipartRequest('POST', uri);
       request.headers['Authorization'] = 'Bearer $token';
 
@@ -103,21 +138,42 @@ class _AddLaporanScreenState extends State<AddLaporanScreen> {
       request.fields['deskripsi'] = _deskripsiController.text;
 
       var response = await request.send();
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final responseData = await response.stream.bytesToString();
-        final jsonResponse = json.decode(responseData);
-        _showSuccessSnackBar(jsonResponse['message'] ?? "Laporan berhasil ditambahkan!");
-        Navigator.pop(context);
-      } else if (response.statusCode == 401) {
-        _showErrorSnackBar("Sesi telah habis, silakan login kembali");
-        Navigator.pushReplacementNamed(context, '/login');
+      final responseBody = await response.stream.bytesToString();
+
+      if (response.headers['content-type']?.contains('application/json') == true) {
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          final jsonResponse = json.decode(responseBody);
+          await _showSuccessSnackBar(jsonResponse['message'] ?? "Laporan berhasil ditambahkan!");
+          Navigator.pop(context); // Kembali ke halaman sebelumnya setelah berhasil
+        } else if (response.statusCode == 401) {
+          // Token tidak valid atau kadaluarsa
+          await _showErrorSnackBar("Sesi telah habis atau token tidak valid, silakan login kembali");
+          await _clearTokenAndRedirectToLogin(); // Panggil fungsi untuk membersihkan token dan redirect
+        } else {
+          try {
+            final jsonError = json.decode(responseBody);
+            await _showErrorSnackBar(jsonError['message'] ?? "Gagal menambahkan laporan");
+          } catch (e) {
+            await _showErrorSnackBar("Gagal menambahkan laporan: Format respons tidak valid.");
+            print('Error decoding JSON: $e, Response Body: $responseBody');
+          }
+        }
       } else {
-        final errorData = await response.stream.bytesToString();
-        final jsonError = json.decode(errorData);
-        _showErrorSnackBar(jsonError['message'] ?? "Gagal menambahkan laporan");
+        // Tangani respons non-JSON
+        if (response.statusCode == 413) {
+            await _showErrorSnackBar("Gagal mengunggah foto: Ukuran file terlalu besar. (Error 413).");
+        } else if (response.statusCode == 401) {
+            // Ini penting jika server mengembalikan non-JSON tapi status 401
+            await _showErrorSnackBar("Sesi telah habis atau token tidak valid, silakan login kembali");
+            await _clearTokenAndRedirectToLogin(); // Panggil fungsi untuk membersihkan token dan redirect
+        } else {
+            await _showErrorSnackBar("Terjadi kesalahan server: Respon tidak valid. Status: ${response.statusCode}");
+        }
+        print('Server responded with non-JSON content. Status: ${response.statusCode}, Body: $responseBody');
       }
     } catch (e) {
-      _showErrorSnackBar("Terjadi kesalahan: ${e.toString()}");
+      await _showErrorSnackBar("Terjadi kesalahan koneksi: ${e.toString()}");
+      print('Network error: $e');
     } finally {
       setState(() {
         _isSubmitting = false;
@@ -125,8 +181,9 @@ class _AddLaporanScreenState extends State<AddLaporanScreen> {
     }
   }
 
-  void _showErrorSnackBar(String message) {
-    showDialog(
+  /// Menampilkan dialog error dengan pesan kustom.
+  Future<void> _showErrorSnackBar(String message) async {
+    await showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
@@ -198,8 +255,9 @@ class _AddLaporanScreenState extends State<AddLaporanScreen> {
     );
   }
 
-  void _showSuccessSnackBar(String message) {
-    showDialog(
+  /// Menampilkan dialog sukses dengan pesan kustom.
+  Future<void> _showSuccessSnackBar(String message) async {
+    await showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(

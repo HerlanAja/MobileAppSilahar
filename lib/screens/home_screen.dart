@@ -51,9 +51,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final now = DateTime.now();
     final tomorrow = now.add(const Duration(days: 1));
-    bool hasApproachingDeadline = false;
 
     for (final task in _tasksList) {
+      // Skip completed tasks
+      if (task['status'] == 'selesai') continue;
+      
       final deadlineStr = task['tanggal_deadline'];
       if (deadlineStr == null || deadlineStr.isEmpty) continue;
 
@@ -63,16 +65,13 @@ class _HomeScreenState extends State<HomeScreen> {
         final tomorrowDateOnly = DateTime(tomorrow.year, tomorrow.month, tomorrow.day);
 
         if (deadlineDateOnly.isAtSameMomentAs(tomorrowDateOnly)) {
-          hasApproachingDeadline = true;
           _showDeadlineNotification(task['judul'] ?? 'Tugas Tanpa Judul');
+          _hasShownNotification = true;
+          break; // Only show one notification
         }
       } catch (e) {
         debugPrint("Error checking deadline: $e");
       }
-    }
-
-    if (hasApproachingDeadline) {
-      _hasShownNotification = true;
     }
   }
 
@@ -109,6 +108,138 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
     });
+  }
+
+  void _showAllNotifications() {
+    final now = DateTime.now();
+    final tomorrow = now.add(const Duration(days: 1));
+    List<Map<String, dynamic>> approachingTasks = [];
+
+    for (final task in _tasksList) {
+      // Skip completed tasks
+      if (task['status'] == 'selesai') continue;
+      
+      final deadlineStr = task['tanggal_deadline'];
+      if (deadlineStr == null || deadlineStr.isEmpty) continue;
+
+      try {
+        final deadlineDate = DateTime.parse(deadlineStr);
+        final deadlineDateOnly = DateTime(deadlineDate.year, deadlineDate.month, deadlineDate.day);
+        final tomorrowDateOnly = DateTime(tomorrow.year, tomorrow.month, tomorrow.day);
+
+        if (deadlineDateOnly.isAtSameMomentAs(tomorrowDateOnly)) {
+          approachingTasks.add({
+            'title': task['judul'] ?? 'Tugas Tanpa Judul',
+            'deadline': deadlineStr,
+            'task': task,
+          });
+        }
+      } catch (e) {
+        debugPrint("Error checking deadline: $e");
+      }
+    }
+
+    if (approachingTasks.isEmpty) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Text(
+            'Notifikasi',
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.bold,
+              color: primaryColor,
+            ),
+          ),
+          content: Text(
+            'Tidak ada deadline yang mendekati.',
+            style: GoogleFonts.poppins(),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                'Tutup',
+                style: GoogleFonts.poppins(color: primaryColor),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.notifications_active, color: Colors.orange),
+              const SizedBox(width: 10),
+              Text(
+                'Deadline',
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.bold,
+                  color: primaryColor,
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Anda memiliki ${approachingTasks.length} tugas dengan deadline besok:',
+                  style: GoogleFonts.poppins(),
+                ),
+                const SizedBox(height: 16),
+                ...approachingTasks.map((task) => Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: ListTile(
+                    leading: const Icon(Icons.task, color: Colors.blue),
+                    title: Text(
+                      task['title'],
+                      style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
+                    ),
+                    subtitle: Text(
+                      'Deadline: ${DateFormat('dd MMM yyyy').format(DateTime.parse(task['deadline']))}',
+                      style: GoogleFonts.poppins(),
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => DetailTugasScreen(task: task['task']),
+                        ),
+                      );
+                    },
+                  ),
+                )).toList(),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                'Tutup',
+                style: GoogleFonts.poppins(color: primaryColor),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   Future<void> fetchUserName() async {
@@ -159,7 +290,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final userId = await AuthHelper.getUserId();
       debugPrint("Current user ID: $userId");
       
-      final url = 'http://silahar3272.ftp.sh:3000/api/tugas/user/$userId/tugas';
+      final url = 'https://silahar3272.ftp.sh/api/tugas/user/$userId/tugas';
       debugPrint("Fetching tasks from URL: $url");
       
       final response = await http.get(Uri.parse(url));
@@ -191,7 +322,7 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _isLoadingNews = true);
     try {
       final response = await http.get(
-        Uri.parse("http://silahar3272.ftp.sh:3000/api/berita/"),
+        Uri.parse("https://silahar3272.ftp.sh/api/berita/"),
       );
       if (response.statusCode == 200) {
         setState(() {
@@ -220,23 +351,18 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // Helper method to get display name (main name without credentials)
   String _getDisplayName(String fullName) {
-    // Split by comma and take the first part (main name)
     final parts = fullName.split(',');
     return parts[0].trim();
   }
 
-  // Helper method to check if name has credentials
   bool _hasCredentials(String fullName) {
     return fullName.contains(',') && fullName.split(',').length > 1;
   }
 
-  // Helper method to get credentials part
   String _getCredentials(String fullName) {
     final parts = fullName.split(',');
     if (parts.length > 1) {
-      // Join all credential parts with comma
       return parts.skip(1).map((part) => part.trim()).join(', ');
     }
     return '';
@@ -389,7 +515,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildHeader() {
     return Row(
       children: [
-        // Username section with flexible layout
         Expanded(
           child: _isLoadingUserName
               ? Container(
@@ -403,7 +528,6 @@ class _HomeScreenState extends State<HomeScreen> {
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Main username display - always visible
                     Text(
                       _getDisplayName(_userName),
                       style: GoogleFonts.poppins(
@@ -414,7 +538,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    // Secondary line for titles/credentials if needed
                     if (_hasCredentials(_userName))
                       Text(
                         _getCredentials(_userName),
@@ -429,47 +552,37 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
         ),
-        // Spacing between username and notification
         const SizedBox(width: 12),
-        // Notification button - fixed width
         Container(
           decoration: BoxDecoration(
             color: primaryColor.withOpacity(0.1),
             borderRadius: BorderRadius.circular(12),
           ),
           child: IconButton(
-            onPressed: () => showDialog(
-              context: context,
-              builder: (context) => AlertDialog(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+            onPressed: _showAllNotifications,
+            icon: Stack(
+              children: [
+                Icon(
+                  Icons.notifications_rounded, 
+                  color: primaryColor,
+                  size: 24,
                 ),
-                title: Text(
-                  'Notifikasi',
-                  style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.bold,
-                    color: primaryColor,
-                  ),
-                ),
-                content: Text(
-                  'Belum ada notifikasi baru.',
-                  style: GoogleFonts.poppins(),
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: Text(
-                      'Tutup',
-                      style: GoogleFonts.poppins(color: primaryColor),
+                if (_hasApproachingDeadlines())
+                  Positioned(
+                    right: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 12,
+                        minHeight: 12,
+                      ),
                     ),
                   ),
-                ],
-              ),
-            ),
-            icon: Icon(
-              Icons.notifications_rounded, 
-              color: primaryColor,
-              size: 24,
+              ],
             ),
             padding: const EdgeInsets.all(12),
             constraints: const BoxConstraints(
@@ -480,6 +593,32 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ],
     );
+  }
+
+  bool _hasApproachingDeadlines() {
+    final now = DateTime.now();
+    final tomorrow = now.add(const Duration(days: 1));
+
+    for (final task in _tasksList) {
+      // Skip completed tasks
+      if (task['status'] == 'selesai') continue;
+      
+      final deadlineStr = task['tanggal_deadline'];
+      if (deadlineStr == null || deadlineStr.isEmpty) continue;
+
+      try {
+        final deadlineDate = DateTime.parse(deadlineStr);
+        final deadlineDateOnly = DateTime(deadlineDate.year, deadlineDate.month, deadlineDate.day);
+        final tomorrowDateOnly = DateTime(tomorrow.year, tomorrow.month, tomorrow.day);
+
+        if (deadlineDateOnly.isAtSameMomentAs(tomorrowDateOnly)) {
+          return true;
+        }
+      } catch (e) {
+        debugPrint("Error checking deadline: $e");
+      }
+    }
+    return false;
   }
 
   Widget _buildWelcomeCard() {
@@ -730,7 +869,7 @@ class _HomeScreenState extends State<HomeScreen> {
             return Padding(
               padding: const EdgeInsets.only(bottom: 16),
               child: NewsCard(
-                imageUrl: "http://silahar3272.ftp.sh:3000${news["image_url"]}",
+                imageUrl: "https://silahar3272.ftp.sh${news["image_url"]}",
                 category: news["category"],
                 title: news["title"],
                 subtitle: news["subtitle"],

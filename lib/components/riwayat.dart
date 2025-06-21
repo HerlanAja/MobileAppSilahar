@@ -74,7 +74,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
       debugPrint("Fetching report history with user ID: $userId");
 
       final response = await http.get(
-        Uri.parse('http://silahar3272.ftp.sh:3000/api/laporan/riwayat'),
+        Uri.parse('https://silahar3272.ftp.sh/api/laporan/riwayat'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -434,7 +434,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                       child: Stack(
                         children: [
                           Image.network(
-                            'http://silahar3272.ftp.sh:3000${item['foto_kegiatan']}',
+                            'https://silahar3272.ftp.sh${item['foto_kegiatan']}',
                             height: 180,
                             width: double.infinity,
                             fit: BoxFit.cover,

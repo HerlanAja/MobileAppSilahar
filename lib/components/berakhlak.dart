@@ -19,7 +19,7 @@ class _BerakhlakState extends State<Berakhlak> with SingleTickerProviderStateMix
   String? _errorMessage;
   
   // Base URL for the API
-  final String _baseUrl = 'http://silahar3272.ftp.sh:3000';
+  final String _baseUrl = 'https://silahar3272.ftp.sh';
 
   @override
   void initState() {
@@ -134,7 +134,7 @@ class _BerakhlakState extends State<Berakhlak> with SingleTickerProviderStateMix
             ],
           ),
           child: Text(
-            'Berakhlak',
+            'Core Values ASN',
             style: GoogleFonts.poppins(
               fontWeight: FontWeight.bold,
               color: primaryColor,
@@ -266,7 +266,7 @@ class _BerakhlakState extends State<Berakhlak> with SingleTickerProviderStateMix
         children: [
           // Title with animation
           Text(
-            'Berakhlak',
+            'Core Values ASN',
             style: GoogleFonts.poppins(
               fontSize: 24,
               fontWeight: FontWeight.bold,

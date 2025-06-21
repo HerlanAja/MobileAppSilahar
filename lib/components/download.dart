@@ -240,7 +240,7 @@ class _DownloadLaporanState extends State<DownloadLaporan> with SingleTickerProv
       }
 
       final response = await http.get(
-        Uri.parse('http://silahar3272.ftp.sh:3000/api/laporan/$_userId/$formattedDate'),
+        Uri.parse('https://silahar3272.ftp.sh/api/laporan/$_userId/$formattedDate'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',

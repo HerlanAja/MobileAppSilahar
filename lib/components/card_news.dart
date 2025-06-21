@@ -186,7 +186,7 @@ class _NewsListScreenState extends State<NewsListScreen> {
     });
     
     try {
-      final response = await http.get(Uri.parse('http://192.168.223.151:8080/api/news/'));
+      final response = await http.get(Uri.parse('https://192.168.223.151:8080/api/news/'));
       if (response.statusCode == 200) {
         setState(() {
           newsList = jsonDecode(response.body);

@@ -68,7 +68,7 @@ class _DetailTugasScreenState extends State<DetailTugasScreen> with SingleTicker
       }
       
       // Using the specified API endpoint with the exact format from Postman
-      final url = Uri.parse('http://silahar3272.ftp.sh:3000/api/tugas/user/tugas/${widget.task['id']}/status');
+      final url = Uri.parse('https://silahar3272.ftp.sh/api/tugas/user/tugas/${widget.task['id']}/status');
       
       // Request body - exactly as shown in Postman
       final body = {
